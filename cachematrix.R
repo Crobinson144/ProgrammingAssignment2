@@ -1,134 +1,121 @@
-# ============================================================
-# Programming Assignment 2: Lexical Scoping
-# ============================================================
-# This script contains two main functions:
-#   1. makeCacheMatrix() - creates a special matrix object that can cache its inverse.
-#   2. cacheSolve()      - computes (and caches) the inverse of that matrix.
-#
-# The code uses lexical scoping and the <<- operator to maintain state between
-# function calls.
-#
-# Additional helper function (.is_invertible) checks whether a matrix is
-# invertible before attempting to compute its inverse, providing safe error
-# handling and user-friendly messages.
-# ============================================================
+## ===============================================================
+## Programming Assignment 2: Lexical Scoping
+## ===============================================================
+##
+## Author: [Your Name]
+## Date: [Today's Date]
+##
+## Purpose:
+##   Demonstrate how lexical scoping in R can be used to cache the
+##   inverse of a matrix to avoid unnecessary computation.
+##
+## Description:
+##   This script defines two key functions:
+##     1. makeCacheMatrix() – Creates a special matrix object
+##        that can store both a matrix and its inverse.
+##     2. cacheSolve() – Computes or retrieves the cached inverse
+##        of the matrix stored in that object.
+##
+## Why caching matters:
+##   Matrix inversion is computationally expensive.  By storing
+##   the result after the first computation, we can reuse it in
+##   subsequent calls, greatly improving performance.
+##
+## ===============================================================
 
 
-# ------------------------------------------------------------
-# makeCacheMatrix()
-# ------------------------------------------------------------
-# Creates a special "matrix" object that can store its inverse.
-# ------------------------------------------------------------
-
+## ---------------------------------------------------------------
+## Function: makeCacheMatrix
+##
+## Description:
+##   Creates a special "matrix" object that stores both the matrix
+##   itself and a cached version of its inverse.
+##
+## Arguments:
+##   x - a numeric matrix (default: an empty matrix)
+##
+## Returns:
+##   A list containing four functions:
+##     1. set(y):    assign a new matrix and clear the cache
+##     2. get():     retrieve the current matrix
+##     3. setinv(i): store the inverse matrix in cache
+##     4. getinv():  retrieve the cached inverse
+##
+## Example:
+##   m <- makeCacheMatrix(matrix(c(1,2,3,4),2,2))
+##
 makeCacheMatrix <- function(x = matrix()) {
-  inv <- NULL  # cached inverse
+  inv <- NULL  # Cached inverse, initially empty
   
-  .validate_matrix <- function(m) {
-    if (!is.matrix(m)) stop("Input must be a matrix.")
-    if (!is.numeric(m)) stop("Matrix must be numeric.")
-    if (nrow(m) != ncol(m)) stop("Matrix must be square.")
-    invisible(TRUE)
-  }
-  
-  # Validate if x provided at creation
-  if (length(x)) .validate_matrix(x)
-  
-  # Set matrix (and clear cache if new matrix differs)
+  # Replace the matrix and clear any previously cached inverse
   set <- function(y) {
-    .validate_matrix(y)
-    if (!identical(x, y)) {
-      x   <<- y
-      inv <<- NULL
-    }
+    if (!is.matrix(y)) stop("Input must be a matrix.")
+    x <<- y
+    inv <<- NULL
   }
   
-  # Accessor functions
-  get    <- function() x
+  # Retrieve the stored matrix
+  get <- function() x
+  
+  # Store a calculated inverse for later retrieval
   setinv <- function(inverse) inv <<- inverse
+  
+  # Return the cached inverse (or NULL if none)
   getinv <- function() inv
   
-  list(set = set, get = get, setinv = setinv, getinv = getinv)
+  # Return a list of these four functions
+  list(set = set,
+       get = get,
+       setinv = setinv,
+       getinv = getinv)
 }
 
 
-# ------------------------------------------------------------
-# .is_invertible()
-# ------------------------------------------------------------
-# Helper to check if a numeric square matrix is invertible.
-# ------------------------------------------------------------
-.is_invertible <- function(A, rank_tol = .Machine$double.eps^0.5,
-                           cond_warn = 1e12, verbose = TRUE) {
-  n <- nrow(A)
-  # Check full rank
-  r <- qr(A, tol = rank_tol)$rank
-  if (r < n) {
-    if (isTRUE(verbose))
-      message("Matrix is not full rank (singular). Skipping inversion.")
-    return(FALSE)
-  }
-  # Warn if ill-conditioned
-  k <- tryCatch(kappa(A), error = function(e) Inf)
-  if (is.finite(k) && k > cond_warn && isTRUE(verbose)) {
-    message(sprintf(
-      "Warning: matrix is ill-conditioned (kappa ≈ %.2e). Inverse may be unstable.",
-      k
-    ))
-  }
-  TRUE
-}
-
-
-# ------------------------------------------------------------
-# cacheSolve()
-# ------------------------------------------------------------
-# Computes the inverse of the matrix returned by makeCacheMatrix().
-# If already cached, it retrieves the cached result.
-# ------------------------------------------------------------
-cacheSolve <- function(x, ..., use_message = TRUE, safe_check = TRUE) {
+## ---------------------------------------------------------------
+## Function: cacheSolve
+##
+## Description:
+##   Computes the inverse of the special "matrix" object returned
+##   by makeCacheMatrix().  If the inverse has already been
+##   computed and cached, it retrieves it instead of recalculating.
+##
+## Arguments:
+##   x - a special matrix object from makeCacheMatrix()
+##   ... - optional arguments passed to solve()
+##
+## Returns:
+##   The inverse of the stored matrix.
+##
+## Notes:
+##   - If the matrix has changed since the last inversion, a new
+##     inverse will be computed and cached automatically.
+##   - A message is printed when a cached value is used.
+##
+## Example:
+##   cacheSolve(m)  # first call: computes
+##   cacheSolve(m)  # second call: uses cached version
+##
+cacheSolve <- function(x, ...) {
   inv <- x$getinv()
+  
+  # If a cached inverse exists, return it immediately
   if (!is.null(inv)) {
-    if (isTRUE(use_message)) message("getting cached inverse")
+    message("Getting cached inverse")
     return(inv)
   }
   
   mat <- x$get()
-  if (!length(mat)) {
-    if (isTRUE(use_message))
-      message("No matrix set; use the object's set() first.")
-    return(NULL)
-  }
   
-  # Optional safety check
-  if (isTRUE(safe_check)) {
-    if (!.is_invertible(mat, verbose = use_message)) {
-      return(NULL)
-    }
-  }
+  # Basic validation checks
+  if (!is.matrix(mat)) stop("Input must be a matrix.")
+  if (nrow(mat) != ncol(mat)) stop("Matrix must be square.")
   
-  inv <- tryCatch(
-    solve(mat, ...),
-    error = function(e) {
-      if (isTRUE(use_message))
-        message("Matrix inversion failed: ", conditionMessage(e))
-      return(NULL)
-    }
-  )
+  # Compute the inverse using the base R 'solve' function
+  inv <- solve(mat, ...)
   
-  if (!is.null(inv)) x$setinv(inv)
+  # Store the inverse in cache for future calls
+  x$setinv(inv)
+  
+  # Return the computed inverse
   inv
 }
-
-
-# ============================================================
-# Example usage (you can test these in the Console)
-# ============================================================
-# source("cachematrix.R")
-# m <- matrix(c(2, 1, 1, 2), 2, 2)
-# cm <- makeCacheMatrix(m)
-# cacheSolve(cm)     # Computes inverse
-# cacheSolve(cm)     # Retrieves cached inverse
-#
-# m_sing <- matrix(c(4, 2, 2, 1), 2, 2)  # Singular matrix
-# cm_sing <- makeCacheMatrix(m_sing)
-# cacheSolve(cm_sing) # Should warn and return NULL
-# ============================================================
