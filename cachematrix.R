@@ -2,8 +2,8 @@
 ## Programming Assignment 2: Lexical Scoping
 ## ===============================================================
 ##
-## Author: [Your Name]
-## Date: [Today's Date]
+## Author: Chinua Eric Robinson 
+## Date: 11/11/2025
 ##
 ## Purpose:
 ##   Demonstrate how lexical scoping in R can be used to cache the
